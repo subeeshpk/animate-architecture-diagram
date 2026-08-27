@@ -48,6 +48,29 @@ Python 3.8+, standard library only at runtime — no dependencies to install to 
 
 **For the draw.io animator:** export from draw.io with **"Include a copy of my diagram"** checked (this is the default export setting, so most exports already have it).
 
+## Setup
+
+The scripts themselves need nothing beyond the standard library, but if you're on macOS you can easily have more than one `python3` on your machine (Apple's Command Line Tools stub, Homebrew, pyenv, Anaconda, ...) — and if `pip install` and `python3 script.py` resolve to *different* ones, you'll install a package into a Python that never runs it (this bites hardest once you also want the [Web UI](#web-ui), since that pulls in Flask as a real dependency instead of being pure stdlib).
+
+Avoid the whole class of problem with a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate   # .venv\Scripts\activate on Windows
+```
+
+Once activated, `python3` and `pip` inside that shell always point at the same interpreter, so every command below just works. Re-run the `source` line whenever you open a new terminal for this project (`deactivate` to leave the venv).
+
+If you'd rather not bother with a venv, at minimum confirm they match before installing anything:
+
+```bash
+which -a python3
+python3 -c "import sys; print(sys.executable)"
+python3 -m pip --version   # note which interpreter this reports
+```
+
+and always invoke pip as `python3 -m pip ...` rather than a bare `pip`, so it can't silently pick a different interpreter than the `python3` you're about to run.
+
 ## Usage
 
 You can run this two ways — pick whichever fits how you work.
