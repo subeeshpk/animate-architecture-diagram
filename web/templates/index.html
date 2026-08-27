@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>animate-architecture-diagram</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    p.sub { color: #666; margin-top: 0; }
+    fieldset { border: 1px solid #ddd; border-radius: 8px; margin: 1rem 0; padding: 1rem 1.25rem; }
+    legend { font-weight: 600; padding: 0 0.4rem; }
+    label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.9rem; }
+    input[type=text], input[type=number], select { width: 100%; padding: 0.4rem; box-sizing: border-box; }
+    input[type=file] { display: block; margin-top: 0.3rem; }
+    .row { display: flex; gap: 1rem; }
+    .row > div { flex: 1; }
+    button { margin-top: 1.25rem; padding: 0.6rem 1.4rem; font-size: 1rem; cursor: pointer; }
+    .flash { background: #fee; border: 1px solid #f99; padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .hint { font-size: 0.8rem; color: #777; margin-top: 0.2rem; }
+  </style>
+</head>
+<body>
+  <h1>animate-architecture-diagram</h1>
+  <p class="sub">Upload a diagram SVG, pick a style, download the animated result.</p>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form action="{{ url_for('animate_route') }}" method="post" enctype="multipart/form-data">
+    <fieldset>
+      <legend>Source</legend>
+      <label for="svg">SVG file</label>
+      <input type="file" id="svg" name="svg" accept=".svg,image/svg+xml" required>
+      <div class="hint">draw.io export? leave engine on "auto". Anything else (Figma, Lucidchart, etc.) also works via "auto".</div>
+
+      <label for="engine">Engine</label>
+      <select id="engine" name="engine">
+        <option value="auto" selected>Auto-detect (recommended)</option>
+        <option value="drawio">draw.io (requires embedded diagram metadata)</option>
+        <option value="generic">Generic (dash style only)</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Style (draw.io engine only)</legend>
+      <select id="style" name="style">
+        <option value="dash" selected>dash — moving-dashes stream</option>
+        <option value="dot">dot — traveling circle</option>
+        <option value="pig">pig — traveling emoji</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Timing</legend>
+      <div class="row">
+        <div>
+          <label for="speed">Speed (seconds per loop)</label>
+          <input type="number" step="0.1" min="0.1" id="speed" name="speed" value="1.0">
+        </div>
+        <div>
+          <label for="stagger">Stagger (seconds between edges)</label>
+          <input type="number" step="0.05" min="0" id="stagger" name="stagger" value="0.35">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Dash style options</legend>
+      <label for="dash">Dash pattern</label>
+      <input type="text" id="dash" name="dash" value="8 6">
+    </fieldset>
+
+    <fieldset>
+      <legend>Dot style options</legend>
+      <div class="row">
+        <div>
+          <label for="dot_radius">Dot radius (px)</label>
+          <input type="number" step="0.5" min="1" id="dot_radius" name="dot_radius" value="5.0">
+        </div>
+        <div>
+          <label for="dot_color">Dot color</label>
+          <input type="text" id="dot_color" name="dot_color" value="#E08A1E">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Pig style options</legend>
+      <div class="row">
+        <div>
+          <label for="emoji">Emoji</label>
+          <input type="text" id="emoji" name="emoji" value="&#128055;">
+        </div>
+        <div>
+          <label for="emoji_size">Emoji size (px)</label>
+          <input type="number" step="1" min="8" id="emoji_size" name="emoji_size" value="20.0">
+        </div>
+      </div>
+    </fieldset>
+
+    <button type="submit">Animate</button>
+  </form>
+</body>
+</html>

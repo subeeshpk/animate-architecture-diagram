@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Added a local Flask web UI (`web/app.py`, optional `pip install -e ".[web]"`) for uploading an SVG, choosing a style, previewing the animated result inline, and downloading it — no CLI needed.
 - Restructured into a standard installable Python project: real `src/animate_diagram/`
   package, `pyproject.toml` with console-script entry points (`animate-drawio-svg`,
   `animate-svg-flow`), and `input/`/`output/` working folders.

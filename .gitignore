@@ -22,3 +22,7 @@ output/*.svg
 !output/animated-dash.svg
 !output/animated-dot.svg
 !output/animated-pig.svg
+
+# Local web UI scratch (uploaded/generated files, not source)
+web/tmp/*
+!web/tmp/.gitkeep

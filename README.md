@@ -102,6 +102,17 @@ Key flags per style:
 
 `input/source.svg` is a sample draw.io diagram; `output/animated-{dash,dot,pig}.svg` are its animated results in each style. Open any of them directly in a browser to see the animation.
 
+## Web UI
+
+A small local Flask app wraps the same `animate_diagram` functions with a browser upload/preview/download flow — no CLI needed.
+
+```bash
+pip install -e ".[web]"
+python3 web/app.py
+```
+
+Then open http://127.0.0.1:5050, upload an SVG, pick a style and options, and either preview the animation inline or download the result. It reuses `animate_diagram.drawio` and `.generic` directly, so behavior matches the CLI exactly.
+
 ## Running the tests
 
 No extra dependencies — the test suite uses only Python's built-in `unittest`:
