@@ -17,7 +17,7 @@ import sys
 import argparse
 import xml.etree.ElementTree as ET
 
-from .common import register_namespaces, build_dash_style_element, apply_dash_animation
+from .common import register_namespaces, build_dash_style_element, apply_dash_animation, reject_dangerous_xml
 
 register_namespaces()
 
@@ -38,6 +38,9 @@ def is_connector(el):
 def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6"):
     """Animate any SVG's connector-like elements. Returns the count
     animated, or raises ValueError if none were found."""
+    with open(input_path, encoding="utf-8") as f:
+        reject_dangerous_xml(f.read())
+
     try:
         tree = ET.parse(input_path)
     except ET.ParseError as e:

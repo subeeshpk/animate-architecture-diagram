@@ -26,7 +26,7 @@ import sys
 import argparse
 import xml.etree.ElementTree as ET
 
-from .common import SVG_NS, register_namespaces, build_dash_style_element, apply_dash_animation
+from .common import SVG_NS, register_namespaces, build_dash_style_element, apply_dash_animation, reject_dangerous_xml
 
 register_namespaces()
 
@@ -57,6 +57,7 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
     or raises ValueError if no draw.io edge metadata is found."""
     with open(input_path, encoding="utf-8") as f:
         raw = f.read()
+    reject_dangerous_xml(raw)
     edge_ids = get_edge_ids(raw)
     if not edge_ids:
         raise ValueError(
@@ -65,16 +66,28 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
             "or use animate_diagram.generic for non-draw.io SVGs."
         )
 
-    tree = ET.parse(input_path)
+    try:
+        tree = ET.parse(input_path)
+    except ET.ParseError as e:
+        raise ValueError(f"Could not parse {input_path} as XML/SVG: {e}")
     root = tree.getroot()
     animated = 0
+
+    # Index every data-cell-id group once (O(tree size)) instead of running
+    # a fresh root.find() XPath scan per edge (which was O(edges x tree size)).
+    # Keep the *first* match for a given id, matching root.find()'s semantics.
+    cell_by_id = {}
+    for el in root.iter():
+        cell_id = el.get("data-cell-id")
+        if cell_id is not None and cell_id not in cell_by_id:
+            cell_by_id[cell_id] = el
 
     if style == "dash":
         style_el = build_dash_style_element(speed, dash)
         root.insert(0, style_el)
 
         for i, edge_id in enumerate(edge_ids):
-            group = root.find(f'.//*[@data-cell-id="{edge_id}"]')
+            group = cell_by_id.get(edge_id)
             if group is None:
                 continue
             path = find_connector_path(group)
@@ -85,7 +98,7 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
 
     else:  # dot or pig mode: line stays as-is, a shape rides along it via animateMotion
         for i, edge_id in enumerate(edge_ids):
-            group = root.find(f'.//*[@data-cell-id="{edge_id}"]')
+            group = cell_by_id.get(edge_id)
             if group is None:
                 continue
             path = find_connector_path(group)

@@ -136,6 +136,10 @@ python3 web/app.py
 
 Then open http://127.0.0.1:5050, upload an SVG, pick a style and options, and either preview the animation inline or download the result. It reuses `animate_diagram.drawio` and `.generic` directly, so behavior matches the CLI exactly.
 
+Uploaded SVGs are treated as untrusted: before anything is previewed inline or offered for download, `animate_diagram.common.sanitize_svg_tree()` strips `<script>`/`<foreignObject>` elements, `on*=""` event-handler attributes, and `javascript:` URIs, and the app sends Content-Security-Policy/X-Frame-Options headers as a second layer of defense.
+
+Uploads are also guarded against malformed/malicious XML: `animate_diagram.common.reject_dangerous_xml()` rejects an embedded `<!ENTITY>` declaration before parsing (a dependency-free defense against XML entity-expansion DoS), and a corrupted file that isn't valid XML gets a clean error instead of crashing the request. Generated files in `web/tmp/` are swept once they're over an hour old. By default the server runs with Flask's debug mode off; set `FLASK_DEBUG=1` if you want the interactive debugger for local development.
+
 ## Running the tests
 
 No extra dependencies — the test suite uses only Python's built-in `unittest`:

@@ -10,9 +10,9 @@ Run with:
     python3 web/app.py
 then open http://127.0.0.1:5050
 """
-import io
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -22,16 +22,51 @@ from flask import Flask, render_template, request, send_from_directory, flash, r
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from animate_diagram import drawio, generic  # noqa: E402
+from animate_diagram.common import sanitize_svg_tree  # noqa: E402
+import xml.etree.ElementTree as ET  # noqa: E402
 
 BASE_DIR = Path(__file__).resolve().parent
 TMP_DIR = BASE_DIR / "tmp"
 TMP_DIR.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB, plenty for an architecture diagram SVG
+TMP_FILE_MAX_AGE_SECONDS = 60 * 60  # generated files older than this get swept
+
+
+def _sweep_stale_tmp_files(max_age_seconds=TMP_FILE_MAX_AGE_SECONDS):
+    """Delete generated/uploaded files in TMP_DIR older than max_age_seconds.
+    Only the input file was ever cleaned up before -- output files (the ones
+    kept around for preview + download) accumulated forever. Called on every
+    /animate request, which is cheap and keeps disk usage bounded without
+    needing a background job."""
+    now = time.time()
+    for f in TMP_DIR.glob("*.svg"):
+        try:
+            if now - f.stat().st_mtime > max_age_seconds:
+                f.unlink(missing_ok=True)
+        except OSError:
+            pass  # another request may have already removed it -- fine
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-only-local-secret")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
+
+@app.after_request
+def set_security_headers(response):
+    # Defense in depth alongside sanitize_svg_tree(): even if something
+    # slipped through, don't let this page execute inline/external script
+    # or be framed by another site. img-src is deliberately permissive --
+    # draw.io diagrams commonly reference their shape-library icons as
+    # external https:// images (e.g. app.diagrams.net) rather than
+    # embedding them, and those still need to load.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
 
 
 @app.route("/", methods=["GET"])
@@ -41,6 +76,8 @@ def index():
 
 @app.route("/animate", methods=["POST"])
 def animate_route():
+    _sweep_stale_tmp_files()
+
     uploaded = request.files.get("svg")
     if not uploaded or uploaded.filename == "":
         flash("Please choose an SVG file to upload.")
@@ -98,6 +135,15 @@ def animate_route():
     finally:
         in_path.unlink(missing_ok=True)
 
+    # The uploaded SVG's own content survives into our output (the
+    # animators only add animation attributes, they don't strip anything
+    # from the source). Since we render this markup inline in the result
+    # page below, sanitize it first -- SVG can carry <script> tags and
+    # on*="" event handlers that would otherwise execute as this site.
+    out_tree = ET.parse(out_path)
+    sanitize_svg_tree(out_tree.getroot())
+    out_tree.write(out_path, encoding="unicode", xml_declaration=True)
+
     svg_markup = out_path.read_text(encoding="utf-8")
     download_name = Path(uploaded.filename).stem + f"-animated-{style if used_engine == 'drawio' else 'dash'}.svg"
 
@@ -123,4 +169,9 @@ def download(token, filename):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5050)
+    # Debug mode (Werkzeug's interactive debugger) is opt-in only: it lets
+    # anyone who can trigger an unhandled exception run arbitrary Python via
+    # the debugger console. Fine for local development, not something to
+    # leave on by default now that this accepts file uploads.
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug, port=5050)

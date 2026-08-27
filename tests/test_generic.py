@@ -62,6 +62,24 @@ class TestAnimateFunction(unittest.TestCase):
         finally:
             os.remove(empty_path)
 
+    def test_rejects_doctype_entity_declaration(self):
+        """Guards against XML entity-expansion ("billion laughs") DoS."""
+        bomb = (
+            '<?xml version="1.0"?>\n'
+            '<!DOCTYPE svg [<!ENTITY a "x"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg">'
+            '<path fill="none" stroke="#000" d="M0 0" title="&b;"/>'
+            '</svg>'
+        )
+        with tempfile.NamedTemporaryFile(suffix=".svg", mode="w", delete=False) as tmp:
+            tmp.write(bomb)
+            bomb_path = tmp.name
+        try:
+            with self.assertRaises(ValueError):
+                generic.animate(bomb_path, "/tmp/should-not-be-created.svg")
+        finally:
+            os.remove(bomb_path)
+
 
 if __name__ == "__main__":
     unittest.main()

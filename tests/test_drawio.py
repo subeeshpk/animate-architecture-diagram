@@ -91,6 +91,47 @@ class TestAnimateFunction(unittest.TestCase):
         finally:
             os.remove(no_metadata_path)
 
+    def test_raises_valueerror_on_malformed_xml(self):
+        """A file with a matching draw.io content= attribute but that isn't
+        well-formed XML must raise a clean ValueError, not an uncaught
+        xml.etree.ElementTree.ParseError."""
+        malformed = (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'content="&lt;mxGraphModel&gt;&lt;root&gt;'
+            '&lt;mxCell id=&quot;e1&quot; edge=&quot;1&quot;/&gt;'
+            '&lt;/root&gt;&lt;/mxGraphModel&gt;">'
+            '<g data-cell-id="e1"><path d="M0 0 L10 & 10" fill="none" stroke="#000"/></g>'
+            '</svg>'
+        )
+        with tempfile.NamedTemporaryFile(suffix=".svg", mode="w", delete=False) as tmp:
+            tmp.write(malformed)
+            bad_path = tmp.name
+        try:
+            with self.assertRaises(ValueError):
+                drawio.animate(bad_path, "/tmp/should-not-be-created.svg")
+        finally:
+            os.remove(bad_path)
+
+    def test_rejects_doctype_entity_declaration(self):
+        """Guards against XML entity-expansion ("billion laughs") DoS: a
+        DOCTYPE/ENTITY declaration must be rejected before parsing, even if
+        it also happens to carry valid-looking draw.io edge metadata."""
+        bomb = (
+            '<?xml version="1.0"?>\n'
+            '<!DOCTYPE svg [<!ENTITY a "x"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]>\n'
+            '<svg xmlns="http://www.w3.org/2000/svg" content="&lt;mxCell id=&quot;e1&quot; edge=&quot;1&quot;/&gt;">'
+            '<g data-cell-id="e1"><path d="M0 0" fill="none" stroke="#000" title="&b;"/></g>'
+            '</svg>'
+        )
+        with tempfile.NamedTemporaryFile(suffix=".svg", mode="w", delete=False) as tmp:
+            tmp.write(bomb)
+            bomb_path = tmp.name
+        try:
+            with self.assertRaises(ValueError):
+                drawio.animate(bomb_path, "/tmp/should-not-be-created.svg")
+        finally:
+            os.remove(bomb_path)
+
 
 class TestCliEndToEnd(unittest.TestCase):
     """Confirms the installed console command / CLI entry point itself works,
