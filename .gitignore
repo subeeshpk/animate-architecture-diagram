@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Scratch/local test output in output/ -- keep the three committed reference
+# examples (animated-dash.svg, animated-dot.svg, animated-pig.svg) but don't
+# accidentally commit every throwaway local run you generate there
+output/*.svg
+!output/animated-dash.svg
+!output/animated-dot.svg
+!output/animated-pig.svg
