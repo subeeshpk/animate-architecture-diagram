@@ -9,7 +9,7 @@ description = "Animate architecture diagram SVGs (draw.io and others) with flowi
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [{ name = "Subeesh PK" }]
+authors = [{ name = "subeeshpk" }]
 
 [project.scripts]
 animate-drawio-svg = "animate_diagram.drawio:main"

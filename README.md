@@ -89,6 +89,7 @@ Key flags per style:
 
 | Flag | Applies to | Default | What it does |
 |---|---|---|---|
+| `--style` | `drawio` | `dash` | Which animation style to use: `dash`, `dot`, or `pig` |
 | `--speed` | all | `1.0` | Seconds per animation loop |
 | `--stagger` | all | `0.35` | Delay (seconds) between each successive edge starting to animate; `0` = all edges move together |
 | `--dash` | `dash` | `"8 6"` | The dash/gap pattern |
@@ -118,6 +119,10 @@ The tests call the `animate_diagram` modules directly, plus one subprocess check
 - If the draw.io animator reports "No embedded draw.io edge metadata found," re-export with "Include a copy of my diagram" checked, or fall back to `animate_diagram.generic`.
 - If it finds edges but animates fewer than expected, draw.io may have nested the connector path deeper than the group-scan expects — open the SVG and check how that specific edge is structured.
 
+## Author
+
+[subeeshpk](https://github.com/subeeshpk)
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT © [subeeshpk](https://github.com/subeeshpk) — see [LICENSE](LICENSE).
