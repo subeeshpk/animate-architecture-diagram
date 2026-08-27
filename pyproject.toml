@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "animate-architecture-diagram"
+version = "0.3.0"
+description = "Animate architecture diagram SVGs (draw.io and others) with flowing dashes, traveling dots, or traveling emoji."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Subeesh PK" }]
+
+[project.scripts]
+animate-drawio-svg = "animate_diagram.drawio:main"
+animate-svg-flow = "animate_diagram.generic:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
