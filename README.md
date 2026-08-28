@@ -140,6 +140,10 @@ Uploaded SVGs are treated as untrusted: before anything is previewed inline or o
 
 Uploads are also guarded against malformed/malicious XML: `animate_diagram.common.reject_dangerous_xml()` rejects an embedded `<!ENTITY>` declaration before parsing (a dependency-free defense against XML entity-expansion DoS), and a corrupted file that isn't valid XML gets a clean error instead of crashing the request. Generated files in `web/tmp/` are swept once they're over an hour old. By default the server runs with Flask's debug mode off; set `FLASK_DEBUG=1` if you want the interactive debugger for local development.
 
+### Per-edge style picker
+
+For draw.io exports, the web UI also offers "Pick styles per edge…" as an alternative to the single-style "Animate" button: it shows the diagram unanimated with each connector clickable, lets you assign dash/dot/pig/skip (plus emoji/color) individually per edge, and animates with that mix. Click a connector in the preview to jump to its row, or hover a row to highlight its connector in the preview. This only works with the draw.io engine, since identifying "which edge is which" relies on the exported diagram metadata -- the generic (non-draw.io) engine has no per-edge identity to select against.
+
 ## Running the tests
 
 No extra dependencies — the test suite uses only Python's built-in `unittest`:

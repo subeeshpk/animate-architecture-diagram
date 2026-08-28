@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>animate-architecture-diagram — pick per-edge styles</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 1.5rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; margin: 0 0 0.25rem; }
+    p.sub { color: #666; margin: 0 0 1rem; }
+    .flash { background: #fee; border: 1px solid #f99; padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .layout { display: flex; gap: 1.5rem; align-items: flex-start; flex-wrap: wrap; }
+    .preview { flex: 2 1 480px; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; overflow: auto; background: #fff; position: sticky; top: 1rem; max-height: 85vh; }
+    .preview svg { max-width: 100%; height: auto; }
+    .picker-edge { cursor: pointer; }
+    .picker-edge:hover, .picker-edge-active { stroke: #1f6feb !important; stroke-width: 3px !important; }
+    .edges-panel { flex: 1 1 340px; max-height: 85vh; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem; }
+    .edge-row { border: 1px solid #e5e5e5; border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 0.6rem; }
+    .edge-row.edge-row-active { border-color: #1f6feb; box-shadow: 0 0 0 1px #1f6feb; }
+    .edge-row .label { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.4rem; }
+    .edge-row .id { color: #888; font-size: 0.75rem; font-family: monospace; }
+    .edge-row .not-clickable { color: #b45; font-size: 0.75rem; }
+    .field { display: inline-block; margin-top: 0.4rem; margin-right: 0.5rem; vertical-align: top; transition: opacity 0.15s; }
+    .field label { display: block; font-size: 0.75rem; color: #777; }
+    select, input[type=text] { padding: 0.3rem; font-size: 0.85rem; }
+    .global-fields { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .global-fields .field label { font-size: 0.8rem; }
+    button { padding: 0.6rem 1.4rem; font-size: 1rem; cursor: pointer; margin-top: 1rem; }
+    a.back { display: inline-block; margin-top: 1rem; margin-left: 0.75rem; color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>Pick a style per edge</h1>
+  <p class="sub">Click a connector in the preview to jump to its row, or hover a row to highlight its connector. Defaults to "dash" for every edge — change only the ones you want different.</p>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form action="{{ url_for('animate_custom_route') }}" method="post">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="orig_filename" value="{{ orig_filename }}">
+
+    <div class="global-fields">
+      <div class="field">
+        <label for="speed">Speed (s/loop)</label>
+        <input type="text" id="speed" name="speed" value="{{ speed }}" size="4">
+      </div>
+      <div class="field">
+        <label for="stagger">Stagger (s)</label>
+        <input type="text" id="stagger" name="stagger" value="{{ stagger }}" size="4">
+      </div>
+      <div class="field">
+        <label for="dash">Dash pattern</label>
+        <input type="text" id="dash" name="dash" value="{{ dash }}" size="6">
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="preview">
+        {{ svg_markup | safe }}
+      </div>
+
+      <div class="edges-panel">
+        {% for edge in edges %}
+        <div class="edge-row" id="row-{{ edge.id }}" data-edge-id="{{ edge.id }}">
+          <div class="label">
+            {% if edge.label %}{{ edge.label }}
+            {% elif edge.source_label or edge.target_label %}{{ edge.source_label or "?" }} &rarr; {{ edge.target_label or "?" }}
+            {% else %}Edge {{ loop.index }}{% endif %}
+          </div>
+          <div class="id">{{ edge.id }}</div>
+          {% if not edge.clickable %}<div class="not-clickable">connector line not found — will be left as-is</div>{% endif %}
+
+          <div class="field">
+            <label for="style__{{ edge.id }}">Style</label>
+            <select id="style__{{ edge.id }}" name="style__{{ edge.id }}">
+              <option value="dash" selected>dash</option>
+              <option value="dot">dot</option>
+              <option value="pig">pig</option>
+              <option value="skip">skip (leave unanimated)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="emoji__{{ edge.id }}">Emoji (pig)</label>
+            <input type="text" id="emoji__{{ edge.id }}" name="emoji__{{ edge.id }}" placeholder="🐷" size="3">
+          </div>
+          <div class="field">
+            <label for="dot_color__{{ edge.id }}">Color (dot)</label>
+            <input type="text" id="dot_color__{{ edge.id }}" name="dot_color__{{ edge.id }}" placeholder="#E08A1E" size="8">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit">Animate with these styles</button>
+    <a class="back" href="{{ url_for('index') }}">Start over</a>
+  </form>
+
+  <script src="{{ url_for('static', filename='picker.js') }}"></script>
+</body>
+</html>

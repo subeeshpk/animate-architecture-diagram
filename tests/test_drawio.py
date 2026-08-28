@@ -133,6 +133,133 @@ class TestAnimateFunction(unittest.TestCase):
             os.remove(bomb_path)
 
 
+class TestEdgeOverrides(unittest.TestCase):
+    """Per-edge style overrides (used by the web UI's style picker)."""
+
+    def _animate(self, **kwargs):
+        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tmp:
+            out_path = tmp.name
+        try:
+            result = drawio.animate(INPUT_SVG, out_path, **kwargs)
+            with open(out_path, encoding="utf-8") as f:
+                output = f.read()
+            return result, output
+        finally:
+            os.remove(out_path)
+
+    def test_no_overrides_matches_plain_call(self):
+        """edge_overrides={} (or omitted) must behave identically to not
+        passing it at all -- this is the backward-compatibility guarantee
+        the whole refactor rests on."""
+        (animated_a, total_a), output_a = self._animate(style="dot")
+        (animated_b, total_b), output_b = self._animate(style="dot", edge_overrides={})
+        self.assertEqual((animated_a, total_a), (animated_b, total_b))
+        self.assertEqual(output_a, output_b)
+
+    def test_per_edge_style_mix(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            edge_ids = drawio.get_edge_ids(f.read())
+        overrides = {
+            edge_ids[0]: {"style": "pig", "emoji": "🚀"},
+            edge_ids[1]: {"style": "dot", "dot_color": "#00FF00"},
+            edge_ids[2]: {"style": "skip"},
+        }
+        (animated, total), output = self._animate(style="dash", edge_overrides=overrides)
+        # 13 edges total, one skipped -> 12 animated
+        self.assertEqual((animated, total), (12, 13))
+        self.assertIn("🚀", output)
+        self.assertIn("#00FF00", output)
+        # the dash <style> block must still be emitted since most edges
+        # fall back to the global "dash" default
+        self.assertIn("stroke-dashoffset", output)
+
+    def test_skip_all_animates_nothing(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            edge_ids = drawio.get_edge_ids(f.read())
+        overrides = {eid: {"style": "skip"} for eid in edge_ids}
+        (animated, total), output = self._animate(style="dash", edge_overrides=overrides)
+        self.assertEqual((animated, total), (0, 13))
+        # no edge used dash, so the shared style block shouldn't be added either
+        self.assertNotIn("stroke-dashoffset", output)
+
+
+class TestGetEdgeDetails(unittest.TestCase):
+    def test_returns_one_entry_per_edge_in_order(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            raw = f.read()
+        ids = drawio.get_edge_ids(raw)
+        details = drawio.get_edge_details(raw)
+        self.assertEqual([d["id"] for d in details], ids)
+
+    def test_finds_edge_label(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            raw = f.read()
+        details = drawio.get_edge_details(raw)
+        labels = [d["label"] for d in details]
+        self.assertIn("Write", labels)
+
+    def test_empty_without_metadata(self):
+        self.assertEqual(drawio.get_edge_details("<svg></svg>"), [])
+
+    def test_entity_bomb_hidden_in_content_falls_back_safely(self):
+        """The outer reject_dangerous_xml(raw) check (run by callers before
+        this function) only scans the raw, still HTML-escaped file text --
+        an <!ENTITY> hidden inside the escaped content="..." attribute
+        reads as "&lt;!ENTITY" there, not "<!entity", so it slips past that
+        check. get_edge_details() parses `content` as its own second XML
+        document (after html.unescape), so it needs -- and, since the fix,
+        has -- its own reject_dangerous_xml(content) guard. This should
+        return the safe empty-label fallback almost instantly rather than
+        attempting to expand the entity bomb."""
+        import html as html_module
+        import time
+
+        entity_bomb = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE mxGraphModel [.'
+            '<!ENTITY a "aaaaaaaaaaaaaaaaaaaa">'
+            '<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">'
+            '<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">'
+            ']>'
+            '<mxGraphModel><root>'
+            '<mxCell id="edge1" edge="1" source="a" target="b"><mxGeometry/></mxCell>'
+            '</root></mxGraphModel>'
+        )
+        escaped = html_module.escape(entity_bomb)
+        svg = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" content="{escaped}">'
+            '<g data-cell-id="edge1"><path stroke="#000" fill="none" d="M0 0 L10 10"/></g>'
+            '</svg>'
+        )
+
+        # The outer check must NOT catch this -- that's what makes it a
+        # real regression test for the inner guard rather than a no-op.
+        from animate_diagram.common import reject_dangerous_xml
+        try:
+            reject_dangerous_xml(svg)
+            outer_caught = False
+        except ValueError:
+            outer_caught = True
+        self.assertFalse(outer_caught, "outer raw-text check unexpectedly caught the escaped payload")
+
+        start = time.time()
+        details = drawio.get_edge_details(svg)
+        elapsed = time.time() - start
+
+        self.assertEqual(details, [{"id": "edge1", "label": "", "source_label": "", "target_label": ""}])
+        self.assertLess(elapsed, 1.0, "get_edge_details took too long -- may be expanding the entity bomb")
+
+
+class TestIndexCellsById(unittest.TestCase):
+    def test_matches_root_find_semantics(self):
+        tree = ET.parse(INPUT_SVG)
+        root = tree.getroot()
+        index = drawio.index_cells_by_id(root)
+        for cell_id in list(index.keys())[:5]:
+            expected = root.find(f'.//*[@data-cell-id="{cell_id}"]')
+            self.assertIs(index[cell_id], expected)
+
+
 class TestCliEndToEnd(unittest.TestCase):
     """Confirms the installed console command / CLI entry point itself works,
     the same way a user would invoke it from the command line."""

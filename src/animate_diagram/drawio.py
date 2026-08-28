@@ -39,6 +39,79 @@ def get_edge_ids(raw_svg_text):
     return re.findall(r'<mxCell id="([^"]+)"[^>]*edge="1"', content)
 
 
+def _strip_html(value):
+    return re.sub(r"<[^>]+>", " ", value or "").strip()
+
+
+def get_edge_details(raw_svg_text):
+    """Parse the embedded draw.io diagram data for richer per-edge info,
+    for display in a UI (the per-edge style picker): each edge's own
+    label if it has a separate edgeLabel child cell, plus its source and
+    target vertices' labels. Returns an ordered list of dicts --
+    [{"id", "label", "source_label", "target_label"}] -- in the same
+    order as get_edge_ids(). Best-effort: anything not present in the
+    metadata comes back as an empty string, never an error."""
+    edge_ids = get_edge_ids(raw_svg_text)
+    if not edge_ids:
+        return []
+
+    m = re.search(r'content="([^"]*)"', raw_svg_text)
+    content = html.unescape(m.group(1))
+    # The outer file's own reject_dangerous_xml() check (run by callers
+    # before this) scans the *raw, still HTML-escaped* file text -- an
+    # <!ENTITY> hidden inside this content="..." attribute would appear
+    # there as "&lt;!ENTITY", not "<!entity", so that check can't see it.
+    # This unescaped `content` string is a second, independent XML
+    # document about to be parsed, so it needs its own guard.
+    try:
+        reject_dangerous_xml(content)
+    except ValueError:
+        return [{"id": eid, "label": "", "source_label": "", "target_label": ""} for eid in edge_ids]
+    try:
+        content_root = ET.fromstring(content)
+    except ET.ParseError:
+        return [{"id": eid, "label": "", "source_label": "", "target_label": ""} for eid in edge_ids]
+
+    cells = content_root.findall(".//mxCell")
+    by_id = {c.get("id"): c for c in cells if c.get("id")}
+
+    def vertex_label(vid):
+        c = by_id.get(vid)
+        return _strip_html(c.get("value")) if c is not None else ""
+
+    edge_label_by_parent = {}
+    for c in cells:
+        parent = c.get("parent")
+        value = c.get("value")
+        if parent and value and "edgeLabel" in (c.get("style") or ""):
+            edge_label_by_parent[parent] = _strip_html(value)
+
+    details = []
+    for eid in edge_ids:
+        c = by_id.get(eid)
+        source = c.get("source") if c is not None else None
+        target = c.get("target") if c is not None else None
+        details.append({
+            "id": eid,
+            "label": edge_label_by_parent.get(eid, ""),
+            "source_label": vertex_label(source) if source else "",
+            "target_label": vertex_label(target) if target else "",
+        })
+    return details
+
+
+def index_cells_by_id(root):
+    """Build a data-cell-id -> element index in one pass (first match
+    wins per id, matching root.find()'s document-order semantics).
+    Shared by animate() and the web UI's per-edge style picker."""
+    cell_by_id = {}
+    for el in root.iter():
+        cell_id = el.get("data-cell-id")
+        if cell_id is not None and cell_id not in cell_by_id:
+            cell_by_id[cell_id] = el
+    return cell_by_id
+
+
 def find_connector_path(group_el):
     """Within a data-cell-id group, the connector line is the first
     path with fill:none (the arrowhead, if present, is filled solid)."""
@@ -52,9 +125,18 @@ def find_connector_path(group_el):
 
 def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
             style="dash", dot_radius=5.0, dot_color="#E08A1E",
-            emoji="🐷", emoji_size=20.0):
+            emoji="🐷", emoji_size=20.0, edge_overrides=None):
     """Animate a draw.io-exported SVG. Returns (animated_count, total_edges),
-    or raises ValueError if no draw.io edge metadata is found."""
+    or raises ValueError if no draw.io edge metadata is found.
+
+    edge_overrides: optional {edge_id: {"style", "dot_radius", "dot_color",
+    "emoji", "emoji_size"}} dict for per-edge control (used by the web UI's
+    style picker). Any key an override omits falls back to this call's own
+    top-level default for that parameter; any edge_id not present in the
+    dict uses `style`/`dot_radius`/etc. entirely, so passing edge_overrides
+    unset (or {}) behaves exactly like the plain single-style call. An
+    override's style may also be "skip" to leave that one edge unanimated.
+    speed/stagger/dash stay global across all edges either way."""
     with open(input_path, encoding="utf-8") as f:
         raw = f.read()
     reject_dangerous_xml(raw)
@@ -72,62 +154,62 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
         raise ValueError(f"Could not parse {input_path} as XML/SVG: {e}")
     root = tree.getroot()
     animated = 0
+    edge_overrides = edge_overrides or {}
 
     # Index every data-cell-id group once (O(tree size)) instead of running
     # a fresh root.find() XPath scan per edge (which was O(edges x tree size)).
-    # Keep the *first* match for a given id, matching root.find()'s semantics.
-    cell_by_id = {}
-    for el in root.iter():
-        cell_id = el.get("data-cell-id")
-        if cell_id is not None and cell_id not in cell_by_id:
-            cell_by_id[cell_id] = el
+    cell_by_id = index_cells_by_id(root)
 
-    if style == "dash":
-        style_el = build_dash_style_element(speed, dash)
-        root.insert(0, style_el)
+    # The dash-flow <style> block only needs to exist once, and only if at
+    # least one edge's *effective* style (its own override if it has one,
+    # else the global default) actually ends up being "dash".
+    effective_styles = (edge_overrides.get(eid, {}).get("style", style) for eid in edge_ids)
+    if "dash" in effective_styles:
+        root.insert(0, build_dash_style_element(speed, dash))
 
-        for i, edge_id in enumerate(edge_ids):
-            group = cell_by_id.get(edge_id)
-            if group is None:
-                continue
-            path = find_connector_path(group)
-            if path is None:
-                continue
+    for i, edge_id in enumerate(edge_ids):
+        override = edge_overrides.get(edge_id, {})
+        eff_style = override.get("style", style)
+        if eff_style == "skip":
+            continue
+
+        group = cell_by_id.get(edge_id)
+        if group is None:
+            continue
+        path = find_connector_path(group)
+        if path is None:
+            continue
+
+        if eff_style == "dash":
             apply_dash_animation(path, i, stagger)
             animated += 1
+            continue
 
-    else:  # dot or pig mode: line stays as-is, a shape rides along it via animateMotion
-        for i, edge_id in enumerate(edge_ids):
-            group = cell_by_id.get(edge_id)
-            if group is None:
-                continue
-            path = find_connector_path(group)
-            if path is None:
-                continue
-            path_id = f"packet-path-{i}"
-            path.set("id", path_id)
-            if not path.get("d"):
-                continue
-            delay = round(i * stagger, 2)
+        # dot or pig: line stays as-is, a shape rides along it via animateMotion
+        path_id = f"packet-path-{i}"
+        path.set("id", path_id)
+        if not path.get("d"):
+            continue
+        delay = round(i * stagger, 2)
 
-            if style == "pig":
-                traveler = ET.SubElement(group, "{%s}text" % SVG_NS)
-                traveler.set("font-size", str(emoji_size))
-                traveler.set("text-anchor", "middle")
-                traveler.set("dominant-baseline", "central")
-                traveler.text = emoji
-            else:  # dot
-                traveler = ET.SubElement(group, "{%s}circle" % SVG_NS)
-                traveler.set("r", str(dot_radius))
-                traveler.set("fill", dot_color)
+        if eff_style == "pig":
+            traveler = ET.SubElement(group, "{%s}text" % SVG_NS)
+            traveler.set("font-size", str(override.get("emoji_size", emoji_size)))
+            traveler.set("text-anchor", "middle")
+            traveler.set("dominant-baseline", "central")
+            traveler.text = override.get("emoji", emoji)
+        else:  # dot
+            traveler = ET.SubElement(group, "{%s}circle" % SVG_NS)
+            traveler.set("r", str(override.get("dot_radius", dot_radius)))
+            traveler.set("fill", override.get("dot_color", dot_color))
 
-            anim = ET.SubElement(traveler, "{%s}animateMotion" % SVG_NS)
-            anim.set("dur", f"{speed}s")
-            anim.set("repeatCount", "indefinite")
-            anim.set("begin", f"{delay}s")
-            mpath = ET.SubElement(anim, "{%s}mpath" % SVG_NS)
-            mpath.set("{http://www.w3.org/1999/xlink}href", f"#{path_id}")
-            animated += 1
+        anim = ET.SubElement(traveler, "{%s}animateMotion" % SVG_NS)
+        anim.set("dur", f"{speed}s")
+        anim.set("repeatCount", "indefinite")
+        anim.set("begin", f"{delay}s")
+        mpath = ET.SubElement(anim, "{%s}mpath" % SVG_NS)
+        mpath.set("{http://www.w3.org/1999/xlink}href", f"#{path_id}")
+        animated += 1
 
     tree.write(output_path, encoding="unicode", xml_declaration=True)
     return animated, len(edge_ids)

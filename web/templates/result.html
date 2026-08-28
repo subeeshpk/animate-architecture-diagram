@@ -21,7 +21,7 @@
   <h1>Animated!</h1>
   <p class="meta">
     Engine: {{ used_engine }}
-    {% if used_engine == 'drawio' %} · style: {{ style }} · animated {{ animated_count }} of {{ total_edges }} edge(s){% endif %}
+    {% if 'drawio' in used_engine %} · style: {{ style }} · animated {{ animated_count }} of {{ total_edges }} edge(s){% endif %}
     {% if used_engine == 'generic' %} · animated {{ animated_count }} connector-like element(s){% endif %}
   </p>
 
