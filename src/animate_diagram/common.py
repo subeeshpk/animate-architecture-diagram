@@ -36,14 +36,28 @@ def build_dash_style_element(speed, dash):
     return style_el
 
 
-def apply_dash_animation(path_el, index, stagger):
+def apply_dash_animation(path_el, index, stagger, speed=None):
     """Add the flow-line class and a staggered animation-delay to a
-    connector path/line element, in place."""
+    connector path/line element, in place.
+
+    speed: optional per-edge override (seconds per loop). All dash-styled
+    edges share one <style> block/@keyframes (see build_dash_style_element)
+    with one duration baked into it, so a per-edge override can't come
+    from a second shared class -- instead this adds an inline
+    "animation-duration" declaration, which CSS's own cascade rules give
+    priority over the class's "animation" shorthand for that one edge,
+    without needing a duplicate keyframes block (the keyframes are
+    percentage-based, not duration-based, so they're shared safely).
+    Left out entirely (the default) when no override is given, so the
+    output is byte-identical to before this parameter existed."""
     existing_class = (path_el.get("class") or "").strip()
     path_el.set("class", (existing_class + " flow-line").strip())
     delay = round(index * stagger, 2)
     existing_style = (path_el.get("style") or "").rstrip(";")
-    new_style = f"{existing_style};animation-delay:{delay}s;" if existing_style else f"animation-delay:{delay}s;"
+    declarations = f"animation-delay:{delay}s;"
+    if speed is not None:
+        declarations += f"animation-duration:{speed}s;"
+    new_style = f"{existing_style};{declarations}" if existing_style else declarations
     path_el.set("style", new_style)
 
 

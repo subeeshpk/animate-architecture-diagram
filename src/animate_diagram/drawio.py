@@ -130,13 +130,16 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
     or raises ValueError if no draw.io edge metadata is found.
 
     edge_overrides: optional {edge_id: {"style", "dot_radius", "dot_color",
-    "emoji", "emoji_size"}} dict for per-edge control (used by the web UI's
-    style picker). Any key an override omits falls back to this call's own
-    top-level default for that parameter; any edge_id not present in the
-    dict uses `style`/`dot_radius`/etc. entirely, so passing edge_overrides
-    unset (or {}) behaves exactly like the plain single-style call. An
-    override's style may also be "skip" to leave that one edge unanimated.
-    speed/stagger/dash stay global across all edges either way."""
+    "emoji", "emoji_size", "speed"}} dict for per-edge control (used by the
+    web UI's style picker). Any key an override omits falls back to this
+    call's own top-level default for that parameter; any edge_id not
+    present in the dict uses `style`/`dot_radius`/etc. entirely, so passing
+    edge_overrides unset (or {}) behaves exactly like the plain single-style
+    call. An override's style may also be "skip" to leave that one edge
+    unanimated. `speed` overrides how many seconds that one edge's own
+    loop takes -- independent of every other edge's speed -- while
+    `stagger` (when each edge *starts*, relative to the others) stays
+    global either way, since it isn't part of what "speed" means here."""
     with open(input_path, encoding="utf-8") as f:
         raw = f.read()
     reject_dangerous_xml(raw)
@@ -181,7 +184,7 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
             continue
 
         if eff_style == "dash":
-            apply_dash_animation(path, i, stagger)
+            apply_dash_animation(path, i, stagger, speed=override.get("speed"))
             animated += 1
             continue
 
@@ -204,7 +207,7 @@ def animate(input_path, output_path, speed=1.0, stagger=0.35, dash="8 6",
             traveler.set("fill", override.get("dot_color", dot_color))
 
         anim = ET.SubElement(traveler, "{%s}animateMotion" % SVG_NS)
-        anim.set("dur", f"{speed}s")
+        anim.set("dur", f"{override.get('speed', speed)}s")
         anim.set("repeatCount", "indefinite")
         anim.set("begin", f"{delay}s")
         mpath = ET.SubElement(anim, "{%s}mpath" % SVG_NS)

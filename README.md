@@ -137,11 +137,12 @@ This is a local, single-user tool by design — it hasn't been hardened for mult
 
 ### Per-edge style picker
 
-For draw.io exports, the web UI also offers "Pick styles per edge…" as an alternative to the single-style "Animate" button: it shows the diagram unanimated with each connector clickable, lets you assign dash/dot/pig/skip (plus emoji/color) individually per edge, and animates with that mix.
+For draw.io exports, the web UI also offers "Pick styles per edge…" as an alternative to the single-style "Animate" button: it shows the diagram unanimated with each connector clickable, lets you assign dash/dot/pig/skip (plus emoji/color/speed) individually per edge, and animates with that mix.
 
 - Click a connector in the preview to jump to its row, or hover a row to highlight its connector in the preview.
 - Each edge is labeled with its own text where draw.io provides one, otherwise its source → target shape names, otherwise a generic "Edge N".
 - Set an edge's style to `skip` to leave that one connector unanimated entirely.
+- Each edge also has its own optional speed field (seconds per loop) — leave it blank to use the global speed above, or set it to make one connector visibly faster or slower than the rest (e.g. a "hot path" that loops quickly, or a rarely-hit fallback path that crawls). `stagger` (when each edge starts) stays global regardless.
 
 This only works with the draw.io engine, since identifying "which edge is which" relies on the exported diagram metadata — the generic (non-draw.io) engine has no per-edge identity to select against.
 
@@ -153,7 +154,7 @@ No extra dependencies for the core suite — most of it uses only Python's built
 python3 -m unittest discover -s tests -v
 ```
 
-43 tests, all passing, covering: both animation engines end-to-end against the real `input/source.svg`, the CLI entry point via a subprocess check, the web UI's `/pick` route (including that a rejected upload doesn't leak a temp file), SVG sanitization, and the XML entity-expansion guard — including a regression test for a payload smuggled inside draw.io's own escaped diagram metadata, not just the outer file. A regression test also documents `animate_diagram.generic`'s known over-counting behavior (see [Known limitations](#known-limitations)) so it's caught if it silently gets worse.
+46 tests, all passing, covering: both animation engines end-to-end against the real `input/source.svg` (including that a per-edge speed override produces its own inline `animation-duration`/`dur` value while leaving every other edge on the global speed), the CLI entry point via a subprocess check, the web UI's `/pick` route (including that a rejected upload doesn't leak a temp file), SVG sanitization, and the XML entity-expansion guard — including a regression test for a payload smuggled inside draw.io's own escaped diagram metadata, not just the outer file. A regression test also documents `animate_diagram.generic`'s known over-counting behavior (see [Known limitations](#known-limitations)) so it's caught if it silently gets worse.
 
 ## Project structure
 

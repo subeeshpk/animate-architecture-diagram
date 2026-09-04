@@ -182,6 +182,39 @@ class TestEdgeOverrides(unittest.TestCase):
         # no edge used dash, so the shared style block shouldn't be added either
         self.assertNotIn("stroke-dashoffset", output)
 
+    def test_per_edge_speed_override_on_dash_style(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            edge_ids = drawio.get_edge_ids(f.read())
+        overrides = {edge_ids[0]: {"style": "dash", "speed": 3.0}}
+        (animated, total), output = self._animate(style="dash", speed=1.0, edge_overrides=overrides)
+        self.assertEqual((animated, total), (13, 13))
+        # the overridden edge gets its own inline animation-duration...
+        self.assertIn("animation-duration:3.0s", output)
+        # ...while the shared class/keyframes still carry the global speed
+        # for every edge that didn't override it
+        self.assertIn("animation: flow 1.0s linear infinite", output)
+
+    def test_per_edge_speed_override_on_dot_style(self):
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            edge_ids = drawio.get_edge_ids(f.read())
+        overrides = {edge_ids[0]: {"style": "dot", "speed": 2.5}}
+        (animated, total), output = self._animate(style="dot", speed=1.0, edge_overrides=overrides)
+        self.assertEqual((animated, total), (13, 13))
+        self.assertIn('dur="2.5s"', output)
+        # the other, non-overridden dot edges still use the global speed
+        self.assertIn('dur="1.0s"', output)
+
+    def test_no_speed_override_matches_plain_call(self):
+        """An edge_overrides dict with a "style" key but no "speed" key
+        must produce byte-identical animation-duration/dur output to not
+        having edge_overrides at all -- speed=None must stay a true no-op."""
+        with open(INPUT_SVG, encoding="utf-8") as f:
+            edge_ids = drawio.get_edge_ids(f.read())
+        overrides = {edge_ids[0]: {"style": "dash"}}
+        (_, _), output_a = self._animate(style="dash", edge_overrides=overrides)
+        (_, _), output_b = self._animate(style="dash", edge_overrides={})
+        self.assertEqual(output_a, output_b)
+
 
 class TestGetEdgeDetails(unittest.TestCase):
     def test_returns_one_entry_per_edge_in_order(self):

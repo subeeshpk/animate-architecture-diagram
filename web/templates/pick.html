@@ -93,6 +93,10 @@
             <label for="dot_color__{{ edge.id }}">Color (dot)</label>
             <input type="text" id="dot_color__{{ edge.id }}" name="dot_color__{{ edge.id }}" placeholder="#E08A1E" size="8">
           </div>
+          <div class="field">
+            <label for="speed__{{ edge.id }}">Speed (s/loop)</label>
+            <input type="text" id="speed__{{ edge.id }}" name="speed__{{ edge.id }}" placeholder="{{ speed }}" size="4">
+          </div>
         </div>
         {% endfor %}
       </div>

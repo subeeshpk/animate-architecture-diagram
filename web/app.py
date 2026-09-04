@@ -287,6 +287,14 @@ def animate_custom_route():
         emoji = request.form.get(f"emoji__{edge_id}", "").strip()
         if emoji:
             override["emoji"] = emoji
+        raw_edge_speed = request.form.get(f"speed__{edge_id}", "").strip()
+        if raw_edge_speed:
+            try:
+                edge_speed = float(raw_edge_speed)
+                if edge_speed > 0:
+                    override["speed"] = edge_speed
+            except ValueError:
+                pass  # leave unset -- falls back to the global speed
         edge_overrides[edge_id] = override
 
     out_path = TMP_DIR / f"{token}-output.svg"
